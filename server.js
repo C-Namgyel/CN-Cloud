@@ -7,7 +7,8 @@ const fs = require("fs/promises");
 const PORT = 3000;
 
 const app = express();
-const STORAGE_ROOT = path.join(__dirname, "uploads");
+// const STORAGE_ROOT = path.join(__dirname, "uploads");
+const STORAGE_ROOT = "/run/media/hkiba/Shared";
 
 app.use(express.static(path.join(__dirname, '/public')));
 app.use(bodyParser.json());
@@ -32,8 +33,7 @@ async function listFolder(reqPath) {
             name: entry.name,
             path: path.join(reqPath, entry.name).replace(/\\/g, "/"),
             type: entry.isDirectory() ? "folder" : "file",
-            size: stats.size,
-            modifiedAt: stats.mtime
+            size: stats.size
         });
     }
     return result;
@@ -41,8 +41,13 @@ async function listFolder(reqPath) {
 
 // Upload
 const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, "./uploads");
+    destination(req, file, cb) {
+        try {
+            const uploadDir = resolveSafePath(req.query.path || "/");
+            cb(null, uploadDir);
+        } catch (err) {
+            cb(err);
+        }
     },
     filename: function (req, file, cb) {
         cb(null, file.originalname);
@@ -74,4 +79,59 @@ app.get("/getFiles", async (req, res) => {
         res.status(500).json({ success: false, error: msg });
     }
 });
+app.delete("/delete", async (req, res) => {
+    try {
+        const reqPath = req.body.path;
+        const fullPath = resolveSafePath(reqPath);
+
+        const stats = await fs.stat(fullPath);
+
+        if (stats.isDirectory()) {
+            await fs.rm(fullPath, { recursive: true, force: true });
+        } else {
+            await fs.unlink(fullPath);
+        }
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({
+            success: false,
+            error: err.message
+        });
+    }
+});
+app.post("/rename", async (req, res) => {
+    try {
+        const oldPath = resolveSafePath(req.body.oldPath);
+        const newPath = resolveSafePath(req.body.newPath);
+        await fs.rename(oldPath, newPath);
+        res.json({
+            success: true
+        });
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            error: err.message
+        });
+    }
+});
+app.get("/download", (req, res) => {
+    const fullPath = resolveSafePath(req.query.path);
+    res.download(fullPath);
+});
+app.post("/mkdir", async (req, res) => {
+    try {
+        const fullPath = resolveSafePath(req.body.path);
+        await fs.mkdir(fullPath);
+        res.json({
+            success: true
+        });
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            error: err.message
+        });
+    }
+});
+
 app.listen(PORT, () => console.log(`App running at http://localhost:${PORT}`));

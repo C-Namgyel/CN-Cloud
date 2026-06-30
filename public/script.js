@@ -1,6 +1,4 @@
-// Variables
-let tree = [];
-let index = {};
+let index = new Map();
 let dir = "/";
 
 // Functions
@@ -14,114 +12,183 @@ function showLoading(text) {
 function hideLoading() {
     document.getElementById("loading-container").style.display = "none";
 }
+function toggleMenu() {
+    const el = document.getElementById("add-list");
+    el.classList.toggle("active");
+}
 function convertByte(byte) {
-    if (byte > 1024 ** 4) {
-        return (byte / (1024 ** 4)).toFixed(2) + " TB";
-    } else if (byte > 1024 ** 3) {
-        return (byte / (1024 ** 3)).toFixed(2) + " GB";
-    } else if (byte > 1024 ** 2) {
-        return (byte / (1024 ** 2)).toFixed(2) + " MB";
-    } else if (byte > 1024) {
-        return (byte / (1024)).toFixed(2) + " KB";
-    } else {
-        return byte + " B";
-    }
+    if (byte > 1024 ** 3) return (byte / 1024 ** 3).toFixed(2) + " GB";
+    if (byte > 1024 ** 2) return (byte / 1024 ** 2).toFixed(2) + " MB";
+    if (byte > 1024) return (byte / 1024).toFixed(2) + " KB";
+    return byte + " B";
 }
 function buildIndex(tree, map = new Map()) {
     for (const node of tree) {
-        let tempDir = node.path.split("/");
-        tempDir.pop();
-        tempDir = tempDir.join("/");
-        tempDir = tempDir == "" ? "/" : tempDir;
-        if (map.get(tempDir) == undefined) {
-            map.set(tempDir, [])
+        const parent = node.path.split("/").slice(0, -1).join("/") || "/";
+        if (!map.has(parent)) {
+            map.set(parent, []);
         }
-        map.get(tempDir).push(node);
+        map.get(parent).push(node);
     }
     return map;
 }
 function listFiles(res) {
-    const folders = res.filter(a => a.type == "folder").sort((a, b) => a.name.localeCompare(b.name));
-    const files = res.filter(a => a.type == "file").sort((a, b) => a.name.localeCompare(b.name));
+    const folders = res
+        .filter(a => a.type === "folder")
+        .sort((a, b) => a.name.localeCompare(b.name));
+    const files = res
+        .filter(a => a.type === "file")
+        .sort((a, b) => a.name.localeCompare(b.name));
     const final = [...folders, ...files];
-    document.getElementById("fileTable").innerHTML = "";
-    for (let f of final) {
-        const row = document.getElementById("fileTable").insertRow();
-        row.insertCell(0).innerText = `${f.name} ${((f.type == "folder") ? "/" : "")}`;
-        row.insertCell(1).innerText = f.type == "file" ? convertByte(f.size) : "-";
-        row.insertCell(2).innerText = new Date(f.modifiedAt).toLocaleDateString() + " " + new Date(f.modifiedAt).toLocaleTimeString();
-        row.insertCell(3).innerText = ":";
-        row.onclick = () => {
-            if (f.type == 'file') {
-                console.log("Downloading file " + f.name)
-            } else {
-                dir = f.path;
-                document.getElementById("dirUrl").innerText = dir;
-                const cache = index.get(dir);
-                if (cache == undefined) {
-                    showLoading("Loading...");
-                    fetch(api("/getFiles?path=/" + dir))
-                        .then(res => res.json())
-                        .then(res => {
-                            hideLoading();
-                            if (res.success) {
-                                const temp = buildIndex(res.items);
-                                const merged = new Map([...index, ...temp]);
-                                index = merged;
-                                listFiles(index.get(dir));
-                            } else {
-                                console.error(res.error);
-                            }
-                        })
-                } else {
-                    listFiles(cache);
+    const tbody = document.getElementById("fileTable");
+    tbody.innerHTML = "";
+    for (const f of final) {
+        const row = tbody.insertRow();
+        row.insertCell(0).innerText = f.type === "folder" ? "📁" : "📄";
+        row.insertCell(1).innerHTML = `<div class="file-name"> ${f.name} </div>`;
+        row.insertCell(2).innerText = f.type === "file" ? convertByte(f.size) : "-";
+        row.insertCell(3);
+        const actionBtn = document.createElement("button");
+        actionBtn.className = "more-btn";
+        actionBtn.innerText = "⋮";
+        row.cells[3].appendChild(actionBtn);
+        actionBtn.onclick = () => {
+            document.getElementById("actionModal").classList.remove("hidden");
+            document.getElementById("actionDelete").onclick = () => {
+                if (confirm("Do you really want to delete this file? This cannot be undone") == false) return;
+                showLoading("Deleting");
+                fetch(api("/delete"), {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        path: f.path
+                    })
+                })
+                    .then(res => res.json())
+                    .then(res => {
+                        hideLoading();
+                        if (res.success) {
+                            index.set(backDir(f.path), index.get(backDir(f.path)).filter(a => a.name != f.name));
+                            listFiles(index.get(backDir(f.path)));
+                        } else {
+                            console.error(res.error);
+                        }
+                        closeMenu();
+                    })
+            }
+            document.getElementById("actionRename").onclick = () => {
+                const newName = prompt("Enter new file name", f.name).trim();
+                if (newName == f.name || newName == null || newName == "") return;
+                if (newName.includes("/")) {
+                    alert("Invalid character found in file name");
+                    return;
                 }
+                showLoading("Renaming");
+                fetch(api("/rename"), {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        oldPath: f.path,
+                        newPath: backDir(f.path) + "/" + newName
+                    })
+                })
+                    .then(res => res.json())
+                    .then(res => {
+                        hideLoading();
+                        if (res.success) {
+                            let oldData = index.get(backDir(f.path)).find(a => a.name == f.name)
+                            oldData.name = newName;
+                            oldData.path = backDir(oldData.path) + "/" + newName
+                            index.set(backDir(f.path), index.get(backDir(f.path)).filter(a => a.name != f.name));
+                            index.get(backDir(f.path)).push(oldData);
+                            listFiles(index.get(backDir(f.path)));
+                        } else {
+                            console.error(res.error);
+                        }
+                        closeMenu();
+                    })
+            }
+            document.getElementById("actionDownload").onclick = () => {
+                if (f.type == "folder") {
+                    alert("Folder download not supported yet");
+                    return;
+                }
+                window.open(
+                    api("/download?path=" + encodeURIComponent(f.path))
+                );
+                closeMenu();
             }
         }
+        row.onclick = (e) => {
+            if (e.target.className == "more-btn") return;
+            if (f.type === "file") {
+                console.log("Download:", f.name);
+                return;
+            }
+            dir = f.path;
+            const cache = index.get(dir);
+            if (cache) {
+                document.getElementById("dirUrl").innerText = dir;
+                listFiles(cache);
+                return;
+            }
+            showLoading("Loading...");
+            fetch(api("/getFiles?path=" + dir))
+                .then(r => r.json())
+                .then(res => {
+                    document.getElementById("dirUrl").innerText = dir;
+                    hideLoading();
+                    const temp = buildIndex(res.items);
+                    index = new Map([...index, ...temp]);
+                    listFiles(index.get(dir) || []);
+                });
+        };
     }
+}
+function backDir(dir) {
+    return dir.split("/").slice(0, -1).join("/") || "/";;
 }
 function back() {
-    if (dir == "/") {
-        alert("Already at the root");
-        return;
-    }
-    let tempDir = dir.split("/");
-    tempDir.pop();
-    dir = tempDir.join("/");
-    dir = dir == "" ? "/" : dir;
+    if (dir === "/") return;
+    dir = backDir(dir);
     document.getElementById("dirUrl").innerText = dir;
-    listFiles(index.get(dir));
+    loadDir(dir);
 }
-
-// New Button
-function showOptions() {
-    document.getElementById("add-list").style.display = "flex";
-}
-
-// Upload Files
-async function upload(e) {
-    const file = e.files[0];
-    if (!file) {
-        alert("Choose a file first");
+function loadDir(path) {
+    const cached = index.get(path);
+    if (cached) {
+        listFiles(cached);
         return;
     }
+    showLoading("Loading...");
+    fetch(api("/getFiles?path=" + path))
+        .then(r => r.json())
+        .then(res => {
+            hideLoading();
+            if (!res.success) return;
+            const temp = buildIndex(res.items);
+            index = new Map([...index, ...temp]);
+            listFiles(index.get(path) || []);
+        });
+}
+function upload(input) {
+    const file = input.files[0];
+    if (!file) return;
     const uploadDir = dir;
-    document.getElementById("uploadName").innerText = file.name;
-    document.getElementById("uploadProgress").innerText = "Uploading...";
     const form = new FormData();
     form.append("file", file);
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/upload");
-    xhr.upload.onprogress = function (e) {
-        if (e.lengthComputable) {
-            const percent = Math.round(
-                e.loaded / e.total * 100
-            );
-            document.getElementById("uploadProgress").innerText = `${convertByte(e.loaded)}/${convertByte(e.total)}   |   ${percent}%`;
-        }
+    xhr.open("POST", `upload?path=${encodeURIComponent(dir)}`);
+    xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable) return;
+        const percent = Math.round((e.loaded / e.total) * 100);
+        document.getElementById("uploadProgress").innerHTML = `${file.name} (${convertByte(e.loaded)} / ${convertByte(e.total)})<br><progress value="${percent / 100}"></progress> ${percent}%`;
     };
-    xhr.onload = function () {
-        document.getElementById("uploadName").innerText = "";
+    xhr.onload = () => {
         document.getElementById("uploadProgress").innerText = "";
         if (index.get(uploadDir) == undefined) {
             index.set(uploadDir, []);
@@ -130,25 +197,52 @@ async function upload(e) {
             name: file.name,
             path: uploadDir,
             type: "file",
-            size: file.size,
-            modifiedAt: new Date().getTime()
+            size: file.size
         })
         document.getElementById("dirUrl").textContent = uploadDir;
         listFiles(index.get(uploadDir));
     };
     xhr.send(form);
 }
-
-// Init
-showLoading("Loading...");
-fetch(api("/getFiles?path=/"))
+function closeMenu() {
+    document.getElementById("actionModal").classList.add("hidden")
+}
+function mkdir() {
+    const fName = prompt("Enter new folder name", "New Folder").trim();
+    if (fName == null || fName == "") return;
+    fetch(api("/mkdir"), {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            path: dir + "/" + fName
+        })
+    })
     .then(res => res.json())
     .then(res => {
-        hideLoading();
         if (res.success) {
-            index = buildIndex(res.items);
+            index.get(dir).push({
+                name: fName,
+                path: dir+fName,
+                size: 0,
+                type: "folder"
+            });
             listFiles(index.get(dir));
         } else {
             console.error(res.error);
         }
     })
+}
+
+// Menu
+document.addEventListener("click", (e) => {
+    const menu = document.getElementById("add-list");
+    const button = document.querySelector(".actions button");
+    if (!menu.contains(e.target) && e.target !== button) {
+        menu.classList.remove("active");
+    }
+});
+
+// ---------- INIT ----------
+loadDir("/");

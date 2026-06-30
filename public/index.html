@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html>
 
 <head>
@@ -8,38 +9,68 @@
 </head>
 
 <body>
+
     <div id="loading-container" class="loading-container">
-        <label id="loading-text" class="loading-text">Loading...</label>
+        <div class="loading-text" id="loading-text">Loading...</div>
     </div>
+
     <div class="header">
-        <h1>CN Cloud</h1>
-        <button onclick="showOptions();">+ New</button>
-        <div id="add-list" class="add-list">
-            <button onclick="this.children[0].click()">Upload File<input oninput="upload(this)" type="file" hidden></button><br>
-            <button>Create Folder</button>
+        <!-- Row 1 -->
+        <div class="top-bar">
+            <h1>CN Cloud</h1>
+
+            <div class="actions">
+                <button onclick="toggleMenu();">+ New</button>
+
+                <div id="add-list" class="add-list">
+                    <button onclick="this.children[0].click()">
+                        Upload File
+                        <input oninput="upload(this)" type="file" hidden>
+                    </button>
+                    <button onclick="mkdir();">Create Folder</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 2 -->
+        <div class="nav-bar">
+            <button onclick="back()">← Back</button>
+            <span id="dirUrl">/</span>
         </div>
     </div>
+
     <div class="container">
-        <button onclick="back()">Back</button>
-        <span id="dirUrl">/</span>
         <table>
             <thead>
                 <tr>
-                    <th>Name</th>
+                    <th colspan="2">Name</th>
                     <th>Size</th>
-                    <th>Modified Date</th>
-                    <th>Action</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody id="fileTable">
 
             </tbody>
             <tfoot>
-                <td id="uploadName"></td><td id="uploadProgress" colspan="2"></td><td></td>
+                <td id="uploadProgress" colspan="3"></td>
+                <td></td>
             </tfoot>
         </table>
     </div>
+
+    <!-- File Action -->
+    <div id="actionModal" class="modal hidden">
+        <div class="modal-box">
+            <h3 id="modalTitle">Actions</h3>
+
+            <button id="actionRename">Rename</button>
+            <button id="actionDelete">Delete</button>
+            <button id="actionDownload">Download</button>
+            <button class="close" onclick="closeMenu()">Close</button>
+        </div>
+    </div>
+
+    <script src="./script.js"></script>
 </body>
-<script src="./script.js"></script>
 
 </html>
