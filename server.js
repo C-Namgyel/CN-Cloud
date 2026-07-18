@@ -1,137 +1,47 @@
 const express = require("express");
-const multer = require("multer");
 const bodyParser = require('body-parser');
 const path = require('path');
-const fs = require("fs/promises");
-
-const PORT = 3000;
+const cors = require('cors')
 
 const app = express();
-// const STORAGE_ROOT = path.join(__dirname, "uploads");
-const STORAGE_ROOT = "/run/media/hkiba/Shared";
+const PORT = 8080;
 
-app.use(express.static(path.join(__dirname, '/public')));
+const STORAGE_ROOT = path.join(__dirname, "./uploads");
+const allowedOrigins = [
+  "https://generalshop.gyeldhoung.com",
+  "https://credits.gyeldhoung.com"
+];
+app.use(cors({
+//   origin: (origin, callback) => {
+//     // Allow requests with no Origin (Postman, curl, server-to-server)
+//     if (!origin) return callback(null, true);
+//     if (allowedOrigins.includes(origin)) {
+//       return callback(null, true);
+//     }
+//     callback(new Error("Not allowed by CORS"));
+//   },
+//   credentials: true
+  origin: "*",
+}));
+
 app.use(bodyParser.json());
 
-// Functions
-function resolveSafePath(reqPath = "") {
-    const cleanPath = path.normalize(reqPath).replace(/^(\.\.(\/|\\|$))+/, "");
-    const fullPath = path.join(STORAGE_ROOT, cleanPath);
-    if (!fullPath.startsWith(STORAGE_ROOT)) {
-        throw new Error("Invalid path");
-    }
-    return fullPath;
-}
-async function listFolder(reqPath) {
-    const fullPath = resolveSafePath(reqPath);
-    const entries = await fs.readdir(fullPath, { withFileTypes: true });
-    const result = [];
-    for (const entry of entries) {
-        const itemFullPath = path.join(fullPath, entry.name);
-        const stats = await fs.stat(itemFullPath);
-        result.push({
-            name: entry.name,
-            path: path.join(reqPath, entry.name).replace(/\\/g, "/"),
-            type: entry.isDirectory() ? "folder" : "file",
-            size: stats.size
-        });
-    }
-    return result;
-}
+app.use("/api/drive", require("./api/drive.route"));
+app.use("/api/auth", require("./api/auth.route"));
 
-// Upload
-const storage = multer.diskStorage({
-    destination(req, file, cb) {
-        try {
-            const uploadDir = resolveSafePath(req.query.path || "/");
-            cb(null, uploadDir);
-        } catch (err) {
-            cb(err);
-        }
-    },
-    filename: function (req, file, cb) {
-        cb(null, file.originalname);
-    }
-});
-const upload = multer({ storage });
-
-// APIS
-app.post("/upload", upload.single("file"), (req, res) => {
-    console.log(req.file);
-    res.send("Upload complete!");
-});
-app.get("/getFiles", async (req, res) => {
-    try {
-        const reqPath = req.query.path || "";
-        const files = await listFolder(reqPath);
-        res.json({
-            success: true,
-            path: reqPath,
-            items: files
-        });
-
-    } catch (err) {
-        console.error(err);
-        let msg = "";
-        if (err.code == "ENOENT") {
-            msg = "No such file or directory"
-        }
-        res.status(500).json({ success: false, error: msg });
-    }
-});
-app.delete("/delete", async (req, res) => {
-    try {
-        const reqPath = req.body.path;
-        const fullPath = resolveSafePath(reqPath);
-
-        const stats = await fs.stat(fullPath);
-
-        if (stats.isDirectory()) {
-            await fs.rm(fullPath, { recursive: true, force: true });
-        } else {
-            await fs.unlink(fullPath);
-        }
-        res.json({ success: true });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({
-            success: false,
-            error: err.message
-        });
-    }
-});
-app.post("/rename", async (req, res) => {
-    try {
-        const oldPath = resolveSafePath(req.body.oldPath);
-        const newPath = resolveSafePath(req.body.newPath);
-        await fs.rename(oldPath, newPath);
-        res.json({
-            success: true
-        });
-    } catch (err) {
-        res.status(500).json({
-            success: false,
-            error: err.message
-        });
-    }
-});
-app.get("/download", (req, res) => {
-    const fullPath = resolveSafePath(req.query.path);
-    res.download(fullPath);
-});
-app.post("/mkdir", async (req, res) => {
-    try {
-        const fullPath = resolveSafePath(req.body.path);
-        await fs.mkdir(fullPath);
-        res.json({
-            success: true
-        });
-    } catch (err) {
-        res.status(500).json({
-            success: false,
-            error: err.message
-        });
-    }
+app.get("/health", (req, res) => {
+    res.send("OK");
+})
+app.get("/share", (req, res) => {
+    const relativePath = req.query.path;
+    if (!relativePath)
+      return res.sendStatus(400);
+    const root = path.resolve(STORAGE_ROOT);
+    const file = path.resolve(root, relativePath);
+    if (!file.startsWith(root))
+        return res.sendStatus(403);
+    res.download(file);
+    res.status(200);
 });
 
-app.listen(PORT, () => console.log(`App running at http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));

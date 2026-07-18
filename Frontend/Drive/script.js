@@ -1,9 +1,15 @@
+// Auth
+let uuid = "";
+let token = "";
+
 let index = new Map();
+index.set("/", []);
 let dir = "/";
 
 // Functions
 function api(path) {
-    return `${window.location.origin}${path}`;
+    // return `https://api.xraiga.dev${path}`;
+    return `http://localhost:8080${path}`;
 }
 function showLoading(text) {
     document.getElementById("loading-text").innerText = text;
@@ -41,7 +47,12 @@ function listFiles(res) {
         .sort((a, b) => a.name.localeCompare(b.name));
     const final = [...folders, ...files];
     const tbody = document.getElementById("fileTable");
-    tbody.innerHTML = "";
+    if (final.length <= 0) {
+        tbody.innerHTML = "<td colspan=4><div style=\"margin: 25px; width: 100%; text-align: center; font-weight: bold; color: white;\">It's Empty Here<div></td>";
+        return;
+    } else {
+        tbody.innerHTML = "";
+    }
     for (const f of final) {
         const row = tbody.insertRow();
         row.insertCell(0).innerText = f.type === "folder" ? "📁" : "📄";
@@ -57,10 +68,12 @@ function listFiles(res) {
             document.getElementById("actionDelete").onclick = () => {
                 if (confirm("Do you really want to delete this file? This cannot be undone") == false) return;
                 showLoading("Deleting");
-                fetch(api("/delete"), {
+                fetch(api("/api/drive/delete"), {
                     method: "DELETE",
                     headers: {
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`,
+                        "X-User-ID": uuid
                     },
                     body: JSON.stringify({
                         path: f.path
@@ -79,17 +92,19 @@ function listFiles(res) {
                     })
             }
             document.getElementById("actionRename").onclick = () => {
-                const newName = prompt("Enter new file name", f.name).trim();
-                if (newName == f.name || newName == null || newName == "") return;
+                const newName = prompt("Enter new file name", f.name);
+                if (newName.trim() == f.name || newName == null || newName == "") return;
                 if (newName.includes("/")) {
                     alert("Invalid character found in file name");
                     return;
                 }
                 showLoading("Renaming");
-                fetch(api("/rename"), {
+                fetch(api("/api/drive/rename"), {
                     method: "POST",
                     headers: {
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`,
+                        "X-User-ID": uuid
                     },
                     body: JSON.stringify({
                         oldPath: f.path,
@@ -118,10 +133,16 @@ function listFiles(res) {
                     return;
                 }
                 window.open(
-                    api("/download?path=" + encodeURIComponent(f.path))
+                    api("/api/drive/download?path=" + encodeURIComponent(f.path))
                 );
                 closeMenu();
             }
+            document.getElementById("actionShare").onclick = () => {
+                const share = f.path.substring(1);
+                const url = `${window.location.origin}/share?path=${encodeURIComponent(share)}`;
+                console.log(url);
+            }
+
         }
         row.onclick = (e) => {
             if (e.target.className == "more-btn") return;
@@ -137,7 +158,12 @@ function listFiles(res) {
                 return;
             }
             showLoading("Loading...");
-            fetch(api("/getFiles?path=" + dir))
+            fetch(api("/api/drive/getFiles?path=" + dir), {
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "X-User-ID": uuid
+                }
+            })
                 .then(r => r.json())
                 .then(res => {
                     document.getElementById("dirUrl").innerText = dir;
@@ -160,19 +186,33 @@ function back() {
 }
 function loadDir(path) {
     const cached = index.get(path);
-    if (cached) {
+    if (cached.length != 0) {
         listFiles(cached);
         return;
     }
     showLoading("Loading...");
-    fetch(api("/getFiles?path=" + path))
+    fetch(api("/api/drive/getFiles?path=" + path), {
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "X-User-ID": uuid
+        }
+    })
         .then(r => r.json())
         .then(res => {
             hideLoading();
-            if (!res.success) return;
-            const temp = buildIndex(res.items);
-            index = new Map([...index, ...temp]);
-            listFiles(index.get(path) || []);
+            if (res.success) {
+                if (!res.success) return;
+                const temp = buildIndex(res.items);
+                index = new Map([...index, ...temp]);
+                listFiles(index.get(path) || []);
+            } else {
+                alert(res.error)
+                if (res.error.includes("Unauthorized")) {
+                    localStorage.clear();
+                    location.replace("./Auth");
+                }
+                console.error(res.error)
+            }
         });
 }
 function upload(input) {
@@ -182,7 +222,7 @@ function upload(input) {
     const form = new FormData();
     form.append("file", file);
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `upload?path=${encodeURIComponent(dir)}`);
+    xhr.open("POST", api(`/api/drive/upload?path=${encodeURIComponent(dir)}`));
     xhr.upload.onprogress = (e) => {
         if (!e.lengthComputable) return;
         const percent = Math.round((e.loaded / e.total) * 100);
@@ -210,29 +250,35 @@ function closeMenu() {
 function mkdir() {
     const fName = prompt("Enter new folder name", "New Folder").trim();
     if (fName == null || fName == "") return;
-    fetch(api("/mkdir"), {
+    fetch(api("/api/drive/mkdir"), {
         method: "POST",
         headers: {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "X-User-ID": uuid
         },
         body: JSON.stringify({
             path: dir + "/" + fName
         })
     })
-    .then(res => res.json())
-    .then(res => {
-        if (res.success) {
-            index.get(dir).push({
-                name: fName,
-                path: dir+fName,
-                size: 0,
-                type: "folder"
-            });
-            listFiles(index.get(dir));
-        } else {
-            console.error(res.error);
-        }
-    })
+        .then(res => res.json())
+        .then(res => {
+            if (res.success) {
+                index.get(dir).push({
+                    name: fName,
+                    path: dir + fName,
+                    size: 0,
+                    type: "folder"
+                });
+                listFiles(index.get(dir));
+            } else {
+                console.error(res.error);
+            }
+        })
+}
+function logout() {
+    localStorage.clear();
+    window.location.replace("./Auth");
 }
 
 // Menu
@@ -245,4 +291,23 @@ document.addEventListener("click", (e) => {
 });
 
 // ---------- INIT ----------
-loadDir("/");
+showLoading("Loading")
+fetch(api("/health"))
+    .then(res => {
+        if (localStorage.getItem("uuid") && localStorage.getItem("token") && localStorage.getItem("username")) {
+            uuid = localStorage.getItem("uuid");
+            token = localStorage.getItem("token");
+            loadDir("/");
+        } else {
+            alert("Please login to access the drive");
+            window.location.replace("./Auth");
+        }
+    })
+    .catch(err => {
+        if (err.message == "Failed to fetch") {
+            showLoading("500: Internal Server Error");
+            alert("500: Internal Server Error");
+            document.write("500: Internal Server Error")
+        }
+        console.error(err.message)
+    })

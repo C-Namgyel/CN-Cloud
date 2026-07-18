@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Share</title>
+</head>
+<body>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const share = params.get("path");
+
+        if (!share) {
+            window.close();
+        } else {
+            const link = document.createElement("a");
+            link.href = `http://localhost:8080/share?path=${encodeURIComponent(share)}`;
+            link.download = "";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => {
+                window.close();
+            }, 100);
+        }
+    </script>
+</body>
+</html>

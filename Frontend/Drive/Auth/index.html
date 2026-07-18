@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>School Login Portal</title>
+  <!-- <link rel="icon" type="image/png" href="../logo.png"> -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <div class="container">
+
+    <!-- Header -->
+    <div class="header">
+      <!-- <img src="../logo.png" alt="School Logo" class="logo" /> -->
+      <div>
+        <h1>CN Cloud</h1>
+        <p>A Self Hosted Personal Cloud Storage</p>
+      </div>
+    </div>
+
+    <!-- Login Form -->
+    <form id="login" class="form active" onsubmit="login(event)">
+      <input type="text" id="loginUsername" name="username" placeholder="Username" required autocomplete=""/>
+      <input type="password" id="loginPassword" name="password" placeholder="Password" required autocomplete/>
+      <button type="submit" id="loginBtn" onsubmit="login(event)">Login</button>
+      <p class="msg" id="loginMsg"></p>
+    </form>
+
+    <script src="./script.js"></script>
+</body>
+
+</html>
