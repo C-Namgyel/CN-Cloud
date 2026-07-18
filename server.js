@@ -6,22 +6,23 @@ const cors = require('cors')
 const app = express();
 const PORT = 8080;
 
-const STORAGE_ROOT = path.join(__dirname, "./uploads");
+// const STORAGE_ROOT = path.join(__dirname, "./uploads");
+const STORAGE_ROOT = "/run/media/hkiba/Shared";
+
 const allowedOrigins = [
-  "https://generalshop.gyeldhoung.com",
-  "https://credits.gyeldhoung.com"
+  "https://cloud.xraiga.dev"
 ];
 app.use(cors({
-//   origin: (origin, callback) => {
-//     // Allow requests with no Origin (Postman, curl, server-to-server)
-//     if (!origin) return callback(null, true);
-//     if (allowedOrigins.includes(origin)) {
-//       return callback(null, true);
-//     }
-//     callback(new Error("Not allowed by CORS"));
-//   },
-//   credentials: true
-  origin: "*",
+  origin: (origin, callback) => {
+    // Allow requests with no Origin (Postman, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true
+  // origin: "*",
 }));
 
 app.use(bodyParser.json());

@@ -7,8 +7,8 @@ const router = express.Router();
 const db = require("../db");
 
 // Storage
-const STORAGE_ROOT = path.join(__dirname, "../uploads");
-// const STORAGE_ROOT = "/run/media/hkiba/Shared";
+// const STORAGE_ROOT = path.join(__dirname, "../uploads");
+const STORAGE_ROOT = "/run/media/hkiba/Shared";
 
 // Functions
 function resolveSafePath(reqPath = "") {

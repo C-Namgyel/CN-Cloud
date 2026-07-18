@@ -13,7 +13,7 @@
             window.close();
         } else {
             const link = document.createElement("a");
-            link.href = `http://localhost:8080/share?path=${encodeURIComponent(share)}`;
+            link.href = `https://api.xraiga.dev/share?path=${encodeURIComponent(share)}`;
             link.download = "";
             document.body.appendChild(link);
             link.click();
