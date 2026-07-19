@@ -1,27 +1,206 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <title>Share</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XRaiga Cloud - Shared File</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Inter, Arial, sans-serif;
+        }
+
+        body {
+            background: #101216;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .card {
+            width: min(420px, 90vw);
+            background: #1b1f27;
+            border-radius: 18px;
+            padding: 30px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, .4);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 28px;
+        }
+
+        .icon {
+            font-size: 60px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .row {
+            margin: 15px 0;
+        }
+
+        .label {
+            color: #8a95a7;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .value {
+            font-size: 17px;
+            word-break: break-word;
+        }
+
+        button {
+            width: 100%;
+            margin-top: 30px;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            background: #1d7df2;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: .2s;
+        }
+
+        button:hover {
+            background: #3790fa;
+        }
+
+        button:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+        }
+
+        .error {
+            text-align: center;
+            color: #ff7b7b;
+            display: none;
+            margin-top: 20px;
+        }
+
+        .loading {
+            text-align: center;
+            color: #aaa;
+        }
+    </style>
 </head>
+
 <body>
+
+    <div class="card">
+
+        <h1>XRaiga Cloud</h1>
+
+        <div class="loading" id="loading">
+            Loading...
+        </div>
+
+        <div id="content" style="display:none;">
+
+            <div class="icon">📄</div>
+
+            <div class="row">
+                <div class="label">File Name</div>
+                <div class="value" id="name"></div>
+            </div>
+
+            <div class="row">
+                <div class="label">File Size</div>
+                <div class="value" id="size"></div>
+            </div>
+
+            <div class="row">
+                <div class="label">Last Modified</div>
+                <div class="value" id="modified"></div>
+            </div>
+
+            <button id="downloadBtn">
+                Download
+            </button>
+
+        </div>
+
+        <div class="error" id="error"></div>
+
+    </div>
+
+    <script src="../functions.js"></script>
     <script>
-        const params = new URLSearchParams(window.location.search);
-        const share = params.get("path");
+
+        const share = new URLSearchParams(location.search).get("path");
+
+        const loading = document.getElementById("loading");
+        const content = document.getElementById("content");
+        const error = document.getElementById("error");
+
+        const name = document.getElementById("name");
+        const size = document.getElementById("size");
+        const modified = document.getElementById("modified");
+        const downloadBtn = document.getElementById("downloadBtn");
+
+        function formatBytes(bytes) {
+            const units = ["B", "KB", "MB", "GB", "TB"];
+            let i = 0;
+
+            while (bytes >= 1024 && i < units.length - 1) {
+                bytes /= 1024;
+                i++;
+            }
+
+            return `${bytes.toFixed(2)} ${units[i]}`;
+        }
 
         if (!share) {
-            window.close();
+            loading.style.display = "none";
+            error.style.display = "block";
+            error.textContent = "Invalid share link.";
         } else {
-            const link = document.createElement("a");
-            link.href = `https://api.xraiga.dev/share?path=${encodeURIComponent(share)}`;
-            link.download = "";
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            setTimeout(() => {
-                window.close();
-            }, 100);
+
+            fetch(api(`/share/info?path=${encodeURIComponent(share)}`))
+                .then(async response => {
+
+                    if (!response.ok)
+                        throw new Error();
+
+                    return response.json();
+
+                })
+                .then(file => {
+
+                    loading.style.display = "none";
+                    content.style.display = "block";
+
+                    name.textContent = file.name;
+                    size.textContent = formatBytes(file.size);
+                    modified.textContent = new Date(file.modified).toLocaleString();
+
+                })
+                .catch(() => {
+
+                    loading.style.display = "none";
+                    error.style.display = "block";
+                    error.textContent = "This shared file does not exist.";
+
+                });
+
+            downloadBtn.onclick = () => {
+
+                window.location.href = api(`/share/download?path=${encodeURIComponent(share)}`);
+
+            };
+
         }
+
     </script>
 </body>
+
 </html>

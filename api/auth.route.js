@@ -8,9 +8,10 @@ const db = require("../db");
 
 router.post("/login", async (req, res) => {
     const body = req.body;
-    let token = body.token;
+    let token;
     try {
         const user = db.prepare("SELECT * FROM auth WHERE username = ?").get(body.username);
+        token = user.token;
         if (!user) {
             return res.status(401).json({ error: "Invalid username", success: false });
         }
