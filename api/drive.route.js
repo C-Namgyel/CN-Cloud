@@ -128,11 +128,6 @@ router.post("/rename", async (req, res) => {
         });
     }
 });
-router.get("/download", (req, res) => {
-    if (verify(req.headers["x-user-id"], req.headers.authorization?.replace("Bearer ", "")) != true) return res.status(401).json({success: false, error: verified})
-    const fullPath = resolveSafePath(req.query.path);
-    res.download(fullPath);
-});
 router.post("/mkdir", async (req, res) => {
     if (verify(req.headers["x-user-id"], req.headers.authorization?.replace("Bearer ", "")) != true) return res.status(401).json({success: false, error: verified})
     try {

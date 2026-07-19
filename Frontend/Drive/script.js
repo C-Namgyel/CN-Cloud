@@ -128,22 +128,27 @@ function listFiles(res) {
                     alert("Folder download not supported yet");
                     return;
                 }
-                window.open(
-                    api("/api/drive/download?path=" + encodeURIComponent(f.path))
-                );
+                const share = f.path.substring(1);
+                const url = `${window.location.origin}/share?path=${encodeURIComponent(share)}`;
+                window.open(url, "_blank");
                 closeMenu();
             }
             document.getElementById("actionShare").onclick = () => {
+                if (f.type == "folder") {
+                    alert("Folder share not supported yet");
+                    return;
+                }
                 const share = f.path.substring(1);
                 const url = `${window.location.origin}/share?path=${encodeURIComponent(share)}`;
-                console.log(url);
+                navigator.clipboard.writeText(url);
+                prompt("Share link has been copied to clipboard. You can share the link with others.", url);
+                closeMenu();
             }
 
         }
         row.onclick = (e) => {
             if (e.target.className == "more-btn") return;
             if (f.type === "file") {
-                console.log("Download:", f.name);
                 return;
             }
             dir = f.path;
